@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BootBeer — Burgers That Bite Back</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Oswald:wght@400;600;700&family=Bebas+Neue&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --red:      #B01A1A;
+      --deep-red: #8B0000;
+      --orange:   #E55A1C;
+      --fire:     #FF6B35;
+      --yellow:   #F5C518;
+      --gold:     #FFD700;
+      --cream:    #FFF8F0;
+      --brown:    #5D3A1A;
+      --dark:     #0D0400;
+      --darker:   #080200;
+      --text:     #f0f0f0;
+      --muted:    #888;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { background: var(--dark); color: var(--text); font-family: 'Oswald', sans-serif; overflow-x: hidden; }
+
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: var(--darker); }
+    ::-webkit-scrollbar-thumb { background: var(--red); border-radius: 2px; }
+
+    /* ── LOADER ─────────────────────────────────────── */
+    #loader {
+      position: fixed; inset: 0;
+      background: var(--darker);
+      z-index: 999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.8rem;
+      transition: opacity 0.8s;
+    }
+    #loader.done { opacity: 0; pointer-events: none; }
+    .loader-logo {
+      font-family: 'Bangers', cursive;
+      font-size: 3.4rem; letter-spacing: .18em; color: var(--gold);
+      text-shadow: 3px 3px 0 var(--deep-red);
+    }
+    .loader-bar-bg { width: 300px; height: 2px; background: rgba(255,255,255,0.07); border-radius: 2px; overflow: hidden; }
+    .loader-bar-fill { height: 100%; width: 0%; background: linear-gradient(to right, var(--deep-red), var(--gold)); border-radius: 2px; transition: width 0.15s; }
+    .loader-pct { font-size: 0.72rem; letter-spacing: 4px; color: var(--muted); text-transform: uppercase; }
+
+    /* ── NAV ────────────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.4rem 3rem;
+      transition: background 0.4s, backdrop-filter 0.4s;
+    }
+    nav.scrolled { background: rgba(8,2,0,0.9); backdrop-filter: blur(18px); border-bottom: 1px solid rgba(245,197,24,0.15); }
+
+    .logo {
+      font-family: 'Bangers', cursive;
+      font-size: 2rem; letter-spacing: .15em; color: var(--gold);
+      text-shadow: 2px 2px 0 var(--deep-red);
+    }
+    .nav-links { display: flex; gap: 2.5rem; list-style: none; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.82rem; letter-spacing: 1.5px; text-transform: uppercase; transition: color 0.3s; }
+    .nav-links a:hover { color: var(--gold); }
+    .nav-cta {
+      background: var(--deep-red); color: #fff; border: none;
+      padding: 0.6rem 1.6rem; font-size: 0.78rem; letter-spacing: 1.5px; text-transform: uppercase;
+      cursor: pointer; font-family: 'Oswald', sans-serif; font-weight: 600;
+      transition: background 0.3s, transform 0.2s;
+    }
+    .nav-cta:hover { background: var(--orange); transform: scale(1.04); }
+
+    /* ── SHARED SEQUENCE STYLES ─────────────────────── */
+    .seq-wrapper { position: relative; }
+    .seq-sticky {
+      position: sticky; top: 0; width: 100%; height: 100vh; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .seq-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+    .seq-fade-bottom {
+      position: absolute; bottom: 0; left: 0; right: 0; height: 30%;
+      background: linear-gradient(to bottom, transparent, var(--dark));
+      z-index: 2; pointer-events: none;
+    }
+    .seq-vignette {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.65) 100%);
+      z-index: 2; pointer-events: none;
+    }
+
+    /* ── SCROLL HINT ────────────────────────────────── */
+    .scroll-hint {
+      position: absolute; bottom: 2.5rem; left: 50%; transform: translateX(-50%);
+      z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+      transition: opacity 0.4s;
+    }
+    .scroll-hint span { font-size: 0.68rem; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); }
+    .scroll-line { width: 1px; height: 46px; background: linear-gradient(to bottom, var(--gold), transparent); animation: scrollPulse 2s ease-in-out infinite; }
+    @keyframes scrollPulse { 0%,100%{opacity:1;transform:scaleY(1)}50%{opacity:.35;transform:scaleY(.55)} }
+
+    /* ── INFO LABELS ────────────────────────────────── */
+    .info-label {
+      position: absolute; z-index: 6; pointer-events: none;
+      opacity: 0; transition: opacity 0.55s, transform 0.55s;
+    }
+    .info-label.left  { left: 5%; text-align: left; }
+    .info-label.right { right: 5%; text-align: right; }
+    .info-label.left  { transform: translateX(-28px); }
+    .info-label.right { transform: translateX(28px); }
+    .info-label.visible { opacity: 1; transform: translateX(0); }
+
+    .info-label .il-tag {
+      font-size: 0.62rem; letter-spacing: 4px; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 0.5rem; display: block;
+    }
+    .info-label h3 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(1.6rem, 3vw, 2.8rem); letter-spacing: 3px; color: #fff; line-height: 1.05;
+    }
+    .info-label p { font-size: 0.78rem; color: var(--muted); line-height: 1.65; margin-top: 0.5rem; max-width: 220px; }
+    .info-label .il-line { width: 40px; height: 2px; background: linear-gradient(to right, var(--deep-red), var(--gold)); margin-top: 0.9rem; }
+    .info-label.right .il-line { margin-left: auto; }
+
+    /* ── HERO TITLE ─────────────────────────────────── */
+    #hero-title {
+      position: absolute; z-index: 5; text-align: center;
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+      pointer-events: none; transition: opacity 0.5s, transform 0.5s;
+      width: 100%;
+    }
+    #hero-title h1 {
+      font-family: 'Bangers', cursive;
+      font-size: clamp(4.5rem, 11vw, 10rem); letter-spacing: .1em; line-height: 0.93; color: #fff;
+      text-shadow: 0 0 80px rgba(245,197,24,0.4), 4px 4px 0 var(--deep-red);
+    }
+    #hero-title h1 .acc { color: var(--gold); }
+    #hero-title p { margin-top: 1.2rem; font-size: 0.9rem; letter-spacing: 4px; text-transform: uppercase; color: var(--muted); }
+
+    /* ── SECTION DIVIDER ────────────────────────────── */
+    .seq-divider {
+      position: relative; z-index: 10; background: var(--dark);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 5rem 3rem; text-align: center; overflow: hidden;
+    }
+    .seq-divider::before {
+      content: ''; position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(245,197,24,0.06) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .divider-label { font-size: 0.65rem; letter-spacing: 5px; text-transform: uppercase; color: var(--gold); margin-bottom: 0.8rem; }
+    .divider-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(2.8rem, 6vw, 5.5rem); letter-spacing: 4px; line-height: 0.95; color: #fff;
+    }
+    .divider-sub { font-size: 0.88rem; color: var(--muted); max-width: 460px; line-height: 1.7; margin-top: 1rem; }
+
+    /* ── MARQUEE ────────────────────────────────────── */
+    .marquee-wrap { overflow: hidden; padding: 1.6rem 0; background: var(--darker); border-top: 1px solid rgba(255,255,255,0.04); border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .marquee-track { display: flex; gap: 3rem; white-space: nowrap; animation: marquee 24s linear infinite; width: max-content; }
+    .marquee-rev .marquee-track { animation-direction: reverse; }
+    @keyframes marquee { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+    .marquee-item { font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; letter-spacing: 5px; color: rgba(255,255,255,0.09); text-transform: uppercase; display: flex; align-items: center; gap: 3rem; }
+    .marquee-item .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--gold); display: inline-block; flex-shrink: 0; }
+
+    /* ── MUG INTRO TITLE ────────────────────────────── */
+    #mug-intro {
+      position: absolute; z-index: 5; text-align: center;
+      top: 50%; left: 50%; transform: translate(-50%,-50%);
+      pointer-events: none; transition: opacity 0.5s, transform 0.5s;
+      width: 100%;
+    }
+    #mug-intro h1 {
+      font-family: 'Bangers', cursive;
+      font-size: clamp(3.5rem, 9vw, 8.5rem); letter-spacing: .1em; line-height: .93; color: #fff;
+      text-shadow: 0 0 80px rgba(245,197,24,0.4), 3px 3px 0 var(--deep-red);
+    }
+    #mug-intro h1 .acc { color: var(--gold); }
+    #mug-intro p { margin-top: 1.2rem; font-size: .88rem; letter-spacing: 4px; text-transform: uppercase; color: var(--muted); }
+
+    /* ── MENU SECTION ───────────────────────────────── */
+    #menu { position: relative; padding: 7rem 0 0; background: var(--dark); }
+    .menu-header { padding: 0 4rem 4rem; }
+    .section-eyebrow { font-size: 0.68rem; letter-spacing: 5px; text-transform: uppercase; color: var(--gold); margin-bottom: 0.8rem; }
+    .section-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(3rem, 7vw, 6rem); letter-spacing: 4px; line-height: 1; }
+    .section-sub { color: var(--muted); font-size: 0.92rem; max-width: 480px; line-height: 1.7; margin-top: 0.8rem; }
+
+    .menu-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+
+    .mcard {
+      position: relative; height: 480px; overflow: hidden; cursor: pointer;
+      opacity: 0; transform: translateY(50px);
+      transition: opacity 0.75s, transform 0.75s;
+    }
+    .mcard.in-view { opacity: 1; transform: translateY(0); }
+    .mcard:nth-child(2) { transition-delay: 0.12s; }
+    .mcard:nth-child(3) { transition-delay: 0.24s; }
+    .mcard:nth-child(4) { transition-delay: 0.12s; }
+    .mcard:nth-child(5) { transition-delay: 0.24s; }
+    .mcard:nth-child(6) { transition-delay: 0.36s; }
+
+    .mcard-bg {
+      position: absolute; inset: 0;
+      background-size: cover; background-position: center;
+      transform: scale(1.06); transition: transform 0.7s ease;
+      filter: brightness(0.55) saturate(0.85);
+    }
+    .mcard:hover .mcard-bg { transform: scale(1.13); filter: brightness(0.7) saturate(1.1); }
+
+    .mcard-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.97) 0%, rgba(0,0,0,0.2) 55%, transparent 100%);
+      transition: background 0.5s;
+    }
+    .mcard:hover .mcard-overlay {
+      background: linear-gradient(to top, rgba(13,4,0,0.98) 0%, rgba(139,0,0,0.1) 55%, transparent 100%);
+    }
+
+    .mcard-num { position: absolute; top: 1.4rem; left: 1.6rem; font-family: 'Bebas Neue', sans-serif; font-size: 0.9rem; letter-spacing: 3px; color: rgba(255,255,255,0.2); z-index: 2; }
+    .mcard-content { position: absolute; bottom: 0; left: 0; right: 0; padding: 1.8rem; z-index: 2; }
+    .mcard-icon { font-size: 1.6rem; margin-bottom: 0.6rem; display: block; }
+    .mcard-title { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 3px; color: #fff; line-height: 1; }
+    .mcard-price { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 2px; color: var(--gold); margin-top: 0.3rem; }
+    .mcard-desc {
+      margin-top: 0.5rem; font-size: 0.78rem; color: rgba(255,255,255,0.5); line-height: 1.65; max-width: 240px;
+      opacity: 0; transform: translateY(8px);
+      transition: opacity 0.4s 0.08s, transform 0.4s 0.08s;
+    }
+    .mcard:hover .mcard-desc { opacity: 1; transform: translateY(0); }
+    .mcard-line { width: 0; height: 2px; background: linear-gradient(to right, var(--deep-red), var(--gold)); margin-top: 0.9rem; transition: width 0.45s 0.1s; }
+    .mcard:hover .mcard-line { width: 55px; }
+
+    /* ── STATS ──────────────────────────────────────── */
+    #stats {
+      padding: 5rem 4rem;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 3rem; text-align: center;
+      border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .stat-item { opacity: 0; transform: translateY(28px); transition: opacity 0.7s, transform 0.7s; }
+    .stat-item.in-view { opacity: 1; transform: translateY(0); }
+    .stat-item:nth-child(2){transition-delay:.1s} .stat-item:nth-child(3){transition-delay:.2s} .stat-item:nth-child(4){transition-delay:.3s}
+    .stat-num { font-family: 'Bebas Neue', sans-serif; font-size: 4rem; letter-spacing: 2px; background: linear-gradient(to right, var(--deep-red), var(--gold)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .stat-label { font-size: 0.72rem; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); margin-top: 0.3rem; }
+
+    /* ── ABOUT / PROCESS ────────────────────────────── */
+    #about { padding: 8rem 4rem; }
+    .about-inner { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 6rem; align-items: center; }
+    .step {
+      display: flex; gap: 1.6rem; padding: 1.8rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+      opacity: 0; transform: translateX(36px); transition: opacity 0.7s, transform 0.7s;
+    }
+    .step.in-view { opacity: 1; transform: translateX(0); }
+    .step:nth-child(2){transition-delay:.12s} .step:nth-child(3){transition-delay:.24s} .step:nth-child(4){transition-delay:.36s}
+    .step-num { font-family: 'Bebas Neue', sans-serif; font-size: 3.2rem; line-height: 1; color: rgba(245,197,24,0.15); min-width: 2.5rem; }
+    .step-body h4 { font-size: 0.95rem; font-weight: 600; letter-spacing: 1px; margin-bottom: 0.35rem; color: #fff; }
+    .step-body p { font-size: 0.8rem; color: var(--muted); line-height: 1.7; }
+
+    /* ── CTA ────────────────────────────────────────── */
+    #cta {
+      padding: 10rem 4rem; text-align: center; position: relative; overflow: hidden;
+    }
+    #cta::before {
+      content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      width: 800px; height: 400px;
+      background: radial-gradient(ellipse, rgba(139,0,0,0.12) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .cta-eyebrow { font-size: 0.72rem; letter-spacing: 5px; text-transform: uppercase; color: var(--gold); margin-bottom: 1.4rem; }
+    .cta-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(3.5rem,8vw,7.5rem); letter-spacing: 5px; line-height: 0.95; margin-bottom: 1.8rem; }
+    .cta-title .acc { color: var(--gold); }
+    .cta-sub { color: var(--muted); font-size: 0.92rem; max-width: 460px; margin: 0 auto 3rem; line-height: 1.7; }
+    .cta-btns { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+    .btn-primary {
+      background: var(--deep-red); color: #fff; border: none;
+      padding: 1rem 2.8rem; font-size: 0.82rem; letter-spacing: 2px; text-transform: uppercase;
+      font-family: 'Oswald', sans-serif; font-weight: 600; cursor: pointer;
+      position: relative; overflow: hidden;
+      transition: background 0.3s, transform 0.2s;
+    }
+    .btn-primary::before { content: ''; position: absolute; top:0; left:-100%; width:100%; height:100%; background: linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent); transition: left 0.5s; }
+    .btn-primary:hover::before { left:100%; }
+    .btn-primary:hover { background: var(--orange); transform: scale(1.03); }
+
+    .btn-secondary {
+      background: transparent; color: #fff; border: 1px solid rgba(255,255,255,0.18);
+      padding: 1rem 2.8rem; font-size: 0.82rem; letter-spacing: 2px; text-transform: uppercase;
+      font-family: 'Oswald', sans-serif; cursor: pointer;
+      transition: border-color 0.3s, color 0.3s;
+    }
+    .btn-secondary:hover { border-color: var(--gold); color: var(--gold); }
+
+    /* ── FOOTER ─────────────────────────────────────── */
+    footer {
+      padding: 3.5rem 4rem;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: center;
+    }
+    .footer-logo { font-family: 'Bangers', cursive; font-size: 1.9rem; letter-spacing: .15em; color: var(--gold); text-shadow: 2px 2px 0 var(--deep-red); }
+    .footer-tagline { font-size: 0.75rem; color: var(--muted); letter-spacing: 2px; margin-top: 0.3rem; }
+    .footer-links { display: flex; gap: 2rem; list-style: none; }
+    .footer-links a { color: var(--muted); text-decoration: none; font-size: 0.78rem; letter-spacing: 1px; transition: color 0.3s; }
+    .footer-links a:hover { color: var(--gold); }
+    .footer-copy { grid-column: 1/-1; font-size: 0.68rem; color: rgba(255,255,255,0.13); letter-spacing: 2px; text-align: center; padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.04); }
+
+    /* ── REVEAL UTIL ────────────────────────────────── */
+    .reveal { opacity: 0; transform: translateY(36px); transition: opacity 0.8s, transform 0.8s; }
+    .reveal.in-view { opacity: 1; transform: translateY(0); }
+
+    /* ── CURSOR ─────────────────────────────────────── */
+    .cursor-dot { width:8px;height:8px;background:var(--gold);border-radius:50%;position:fixed;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);mix-blend-mode:difference; }
+    .cursor-ring { width:34px;height:34px;border:1px solid rgba(245,197,24,0.45);border-radius:50%;position:fixed;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);transition:width .3s,height .3s,border-color .3s; }
+
+    @media (max-width:900px) {
+      .menu-grid { grid-template-columns: repeat(2,1fr); }
+      .about-inner { grid-template-columns:1fr; gap:3rem; }
+    }
+    @media (max-width:600px) {
+      nav { padding:1rem 1.2rem; }
+      .nav-links { display:none; }
+      .menu-grid { grid-template-columns:1fr; }
+      .menu-header, #stats, #about, #cta, footer { padding-left:1.2rem; padding-right:1.2rem; }
+      footer { grid-template-columns:1fr; text-align:center; }
+      .footer-links { justify-content:center; }
+      .cursor-dot, .cursor-ring { display:none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div id="loader">
+  <div class="loader-logo">BootBeer</div>
+  <div class="loader-bar-bg"><div class="loader-bar-fill" id="loaderBar"></div></div>
+  <div class="loader-pct" id="loaderPct">Loading…</div>
+</div>
+
+<!-- CURSOR -->
+<div class="cursor-dot" id="cursorDot"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<!-- NAV -->
+<nav id="nav">
+  <div class="logo">BootBeer</div>
+  <ul class="nav-links">
+    <li><a href="#burger-seq">The Burger</a></li>
+    <li><a href="#mug-seq">The Brew</a></li>
+    <li><a href="#menu">Menu</a></li>
+    <li><a href="#cta">Order</a></li>
+  </ul>
+  <button class="nav-cta">Order Now</button>
+</nav>
+
+<!-- ════════════════════════════════════════════════════
+     SECTION 1: BURGER EXPLOSION  (193 frames)
+     ════════════════════════════════════════════════════ -->
+<div id="burger-seq" class="seq-wrapper" style="height:600vh">
+  <div class="seq-sticky" id="burger-sticky">
+    <canvas id="burger-canvas" class="seq-canvas"></canvas>
+    <div class="seq-vignette"></div>
+    <div class="seq-fade-bottom"></div>
+
+    <!-- Hero title -->
+    <div id="hero-title">
+      <h1>BURGERS<br><span class="acc">THAT</span><br>BITE BACK</h1>
+      <p>Fire-grilled &bull; Bold flavors &bull; No shortcuts</p>
+    </div>
+
+    <!-- LEFT labels -->
+    <div class="info-label left" id="b-l1" style="top:50%;transform:translateY(-50%) translateX(-28px)">
+      <span class="il-tag">100% Angus Beef</span>
+      <h3>Double<br>Smash<br>Patty</h3>
+      <p>Hand-pressed on a screaming hot iron every single order.</p>
+      <div class="il-line"></div>
+    </div>
+    <div class="info-label left" id="b-l2" style="top:50%;transform:translateY(-50%) translateX(-28px)">
+      <span class="il-tag">Aged Cheddar</span>
+      <h3>Melted<br>To<br>Perfection</h3>
+      <p>Wisconsin aged cheddar draped and torched at the pass.</p>
+      <div class="il-line"></div>
+    </div>
+    <div class="info-label left" id="b-l3" style="top:50%;transform:translateY(-50%) translateX(-28px)">
+      <span class="il-tag">House Recipe</span>
+      <h3>Secret<br>Sauce</h3>
+      <p>12 ingredients. Been the same since day one. Not telling.</p>
+      <div class="il-line"></div>
+    </div>
+
+    <!-- RIGHT labels -->
+    <div class="info-label right" id="b-r1" style="top:50%;transform:translateY(-50%) translateX(28px)">
+      <span class="il-tag">Open Flame</span>
+      <h3>Char<br>On Every<br>Edge</h3>
+      <p>Grill marks you can taste. Smoke rings that go all the way through.</p>
+      <div class="il-line"></div>
+    </div>
+    <div class="info-label right" id="b-r2" style="top:50%;transform:translateY(-50%) translateX(28px)">
+      <span class="il-tag">Brioche Bun</span>
+      <h3>Butter<br>Toasted<br>Daily</h3>
+      <p>Baked fresh each morning. Buttered and griddled to order.</p>
+      <div class="il-line"></div>
+    </div>
+    <div class="info-label right" id="b-r3" style="top:50%;transform:translateY(-50%) translateX(28px)">
+      <span class="il-tag">The Bootlegger</span>
+      <h3>The One<br>That Started<br>It All</h3>
+      <p>Our signature burger. The reason people come back every week.</p>
+      <div class="il-line"></div>
+    </div>
+
+    <!-- Scroll hint -->
+    <div class="scroll-hint" id="scrollHint">
+      <span>Scroll</span>
+      <div class="scroll-line"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Marquee between sequences -->
+<div class="marquee-wrap">
+  <div class="marquee-track">
+    <span class="marquee-item">Double Smash <span class="dot"></span> Aged Cheddar <span class="dot"></span> Open Flame <span class="dot"></span> Brioche Bun <span class="dot"></span> Secret Sauce <span class="dot"></span> 100% Angus <span class="dot"></span></span>
+    <span class="marquee-item">Double Smash <span class="dot"></span> Aged Cheddar <span class="dot"></span> Open Flame <span class="dot"></span> Brioche Bun <span class="dot"></span> Secret Sauce <span class="dot"></span> 100% Angus <span class="dot"></span></span>
+  </div>
+</div>
+
+<!-- Divider -->
+<div class="seq-divider">
+  <p class="divider-label reveal">Now Pour One</p>
+  <h2 class="divider-title reveal">Every Great<br><span style="color:var(--gold)">Burger Needs</span><br>A Cold One</h2>
+  <p class="divider-sub reveal">32 rotating taps of local craft beer. We find the brews that make the food taste better. Simple as that.</p>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SECTION 2: MUG SLIDE  (193 frames)
+     ════════════════════════════════════════════════════ -->
+<div id="mug-seq" class="seq-wrapper" style="height:500vh">
+  <div class="seq-sticky" id="mug-sticky">
+    <canvas id="mug-canvas" class="seq-canvas"></canvas>
+    <div class="seq-vignette"></div>
+    <div class="seq-fade-bottom"></div>
+
+    <!-- LEFT labels -->
+    <div class="info-label left" id="m-l1" style="top:50%;transform:translateY(-50%) translateX(-28px)">
+      <span class="il-tag">32 Rotating Taps</span>
+      <h3>Always<br>Fresh<br>Draft</h3>
+      <p>We rotate weekly. If it hits different, we keep it longer.</p>
+      <div class="il-line"></div>
+    </div>
+    <div class="info-label left" id="m-l2" style="top:50%;transform:translateY(-50%) translateX(-28px)">
+      <span class="il-tag">Local Craft</span>
+      <h3>Sourced<br>Within<br>100 Miles</h3>
+      <p>We back local brewers. Better beer, smaller footprint.</p>
+      <div class="il-line"></div>
+    </div>
+    <div class="info-label left" id="m-l3" style="top:50%;transform:translateY(-50%) translateX(-28px)">
+      <span class="il-tag">Pairing Guide</span>
+      <h3>Burger +<br>Brew<br>= Magic</h3>
+      <p>Ask your server. We have a pairing for every item on the menu.</p>
+      <div class="il-line"></div>
+    </div>
+
+    <!-- RIGHT labels -->
+    <div class="info-label right" id="m-r1" style="top:50%;transform:translateY(-50%) translateX(28px)">
+      <span class="il-tag">Ice Cold</span>
+      <h3>Served At<br>The Right<br>Temp</h3>
+      <p>Glasses chilled, lines cleaned, lines short. Always.</p>
+      <div class="il-line"></div>
+    </div>
+    <div class="info-label right" id="m-r2" style="top:50%;transform:translateY(-50%) translateX(28px)">
+      <span class="il-tag">Happy Hour</span>
+      <h3>4PM<br>To 7PM<br>Daily</h3>
+      <p>Half-price pints. No exceptions. No catch. Just show up.</p>
+      <div class="il-line"></div>
+    </div>
+    <div class="info-label right" id="m-r3" style="top:50%;transform:translateY(-50%) translateX(28px)">
+      <span class="il-tag">Brews That Roar</span>
+      <h3>Cold Beer.<br>Hot Food.<br>Good Time.</h3>
+      <p>This is the whole idea. We've been doing it for 12 years.</p>
+      <div class="il-line"></div>
+    </div>
+
+    <!-- Mug intro title -->
+    <div id="mug-intro">
+      <h1>BREWS<br><span class="acc">THAT</span><br>ROAR</h1>
+      <p>32 taps &bull; Local craft &bull; Cold pour</p>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     MENU
+     ════════════════════════════════════════════════════ -->
+<section id="menu">
+  <div class="marquee-wrap marquee-rev">
+    <div class="marquee-track">
+      <span class="marquee-item">The Bootlegger <span class="dot"></span> Inferno Stack <span class="dot"></span> Draft Brews <span class="dot"></span> Ember Fries <span class="dot"></span> Scorched Wings <span class="dot"></span> Boot Shake <span class="dot"></span></span>
+      <span class="marquee-item">The Bootlegger <span class="dot"></span> Inferno Stack <span class="dot"></span> Draft Brews <span class="dot"></span> Ember Fries <span class="dot"></span> Scorched Wings <span class="dot"></span> Boot Shake <span class="dot"></span></span>
+    </div>
+  </div>
+
+  <div class="menu-header">
+    <p class="section-eyebrow reveal">What We Serve</p>
+    <h2 class="section-title reveal">The<br>Menu</h2>
+    <p class="section-sub reveal">No freezers. No shortcuts. Just fire, meat, and cold beer. Everything made to order, every time.</p>
+  </div>
+
+  <div class="menu-grid">
+    <div class="mcard">
+      <div class="mcard-bg" style="background-image:url('burger.png')"></div>
+      <div class="mcard-overlay"></div>
+      <div class="mcard-num">01</div>
+      <div class="mcard-content">
+        <span class="mcard-icon">🍔</span>
+        <div class="mcard-title">The Bootlegger</div>
+        <div class="mcard-price">$14.99</div>
+        <p class="mcard-desc">Double smash patty, aged cheddar, caramelized onions, secret sauce on a brioche bun.</p>
+        <div class="mcard-line"></div>
+      </div>
+    </div>
+    <div class="mcard">
+      <div class="mcard-bg" style="background-image:url('burger.png');background-position:center top"></div>
+      <div class="mcard-overlay"></div>
+      <div class="mcard-num">02</div>
+      <div class="mcard-content">
+        <span class="mcard-icon">🔥</span>
+        <div class="mcard-title">Inferno Stack</div>
+        <div class="mcard-price">$18.99</div>
+        <p class="mcard-desc">Triple patty, ghost pepper cheese, habanero mayo, pickled jalapeño slaw. Not for the faint-hearted.</p>
+        <div class="mcard-line"></div>
+      </div>
+    </div>
+    <div class="mcard">
+      <div class="mcard-bg" style="background-image:url('beer.jpeg')"></div>
+      <div class="mcard-overlay"></div>
+      <div class="mcard-num">03</div>
+      <div class="mcard-content">
+        <span class="mcard-icon">🍺</span>
+        <div class="mcard-title">Draft Brews</div>
+        <div class="mcard-price">$7.99</div>
+        <p class="mcard-desc">Rotating tap of 32 local craft beers. Ask your server for today's fire lineup.</p>
+        <div class="mcard-line"></div>
+      </div>
+    </div>
+    <div class="mcard">
+      <div class="mcard-bg" style="background-image:url('emtpy bar.png')"></div>
+      <div class="mcard-overlay"></div>
+      <div class="mcard-num">04</div>
+      <div class="mcard-content">
+        <span class="mcard-icon">🍟</span>
+        <div class="mcard-title">Ember Fries</div>
+        <div class="mcard-price">$6.99</div>
+        <p class="mcard-desc">Thick-cut, tossed in smoked paprika & garlic, served with fire aioli.</p>
+        <div class="mcard-line"></div>
+      </div>
+    </div>
+    <div class="mcard">
+      <div class="mcard-bg" style="background-image:url('burger.png');filter:hue-rotate(15deg)"></div>
+      <div class="mcard-overlay"></div>
+      <div class="mcard-num">05</div>
+      <div class="mcard-content">
+        <span class="mcard-icon">🌶️</span>
+        <div class="mcard-title">Scorched Wings</div>
+        <div class="mcard-price">$15.99</div>
+        <p class="mcard-desc">12 crispy wings, dry-rubbed or sauced — 6 heat levels from mild to nuclear.</p>
+        <div class="mcard-line"></div>
+      </div>
+    </div>
+    <div class="mcard">
+      <div class="mcard-bg" style="background-image:url('beer.jpeg');filter:saturate(0.5) brightness(0.8)"></div>
+      <div class="mcard-overlay"></div>
+      <div class="mcard-num">06</div>
+      <div class="mcard-content">
+        <span class="mcard-icon">🍦</span>
+        <div class="mcard-title">Boot Shake</div>
+        <div class="mcard-price">$5.99</div>
+        <p class="mcard-desc">Hand-spun vanilla, chocolate, or strawberry — thick, tall, and unapologetically indulgent.</p>
+        <div class="mcard-line"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section id="stats">
+  <div class="stat-item"><div class="stat-num" data-target="12">0</div><div class="stat-label">Years Grinding</div></div>
+  <div class="stat-item"><div class="stat-num" data-target="48">0</div><div class="stat-label">Thousand Burgers Served</div></div>
+  <div class="stat-item"><div class="stat-num" data-target="32">0</div><div class="stat-label">Brews on Tap</div></div>
+  <div class="stat-item"><div class="stat-num" data-target="1">0</div><div class="stat-label">In Town</div></div>
+</section>
+
+<!-- ABOUT / STORY -->
+<section id="about">
+  <div class="about-inner">
+    <div>
+      <p class="section-eyebrow reveal">Our Story</p>
+      <h2 class="section-title reveal">Born On<br>A Cracked<br>Lot</h2>
+      <p class="section-sub reveal" style="margin-top:.8rem">Started with a cast iron grill and a cooler full of cold ones. Twelve years later, same grill. Same recipes. Still no shortcuts.</p>
+    </div>
+    <div>
+      <div class="step"><div class="step-num">01</div><div class="step-body"><h4>We Source Local</h4><p>Angus beef from farms within 80 miles. Buns baked fresh down the street. Beer brewed around the corner.</p></div></div>
+      <div class="step"><div class="step-num">02</div><div class="step-body"><h4>We Cook to Order</h4><p>Nothing sits under a lamp. Every patty hits the iron when you order. That's why it takes a minute. It's worth it.</p></div></div>
+      <div class="step"><div class="step-num">03</div><div class="step-body"><h4>We Keep It Honest</h4><p>No gimmicks. No truffle oil. No $40 burgers. Just real food made right, with a cold beer to match.</p></div></div>
+      <div class="step"><div class="step-num">04</div><div class="step-body"><h4>We Show Up Daily</h4><p>Open seven days. 11am to 11pm. Rain, shine, or game day. We're here. Come hungry.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section id="cta">
+  <p class="cta-eyebrow reveal">Hunger calling?</p>
+  <h2 class="cta-title reveal">ORDER<br><span class="acc">NOW</span></h2>
+  <p class="cta-sub reveal">123 Ember St &bull; Open Daily 11am – 11pm &bull; (555) 867-5309<br>Walk in, call ahead, or order online. We'll be here.</p>
+  <div class="cta-btns reveal">
+    <button class="btn-primary">Order Online</button>
+    <button class="btn-secondary">View Full Menu</button>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div>
+    <div class="footer-logo">BootBeer</div>
+    <div class="footer-tagline">Burgers That Bite Back</div>
+  </div>
+  <ul class="footer-links">
+    <li><a href="#">Instagram</a></li>
+    <li><a href="#">TikTok</a></li>
+    <li><a href="#">Menu</a></li>
+    <li><a href="#">Contact</a></li>
+  </ul>
+  <div class="footer-copy">&copy; 2026 BootBeer. All rights reserved. &bull; 123 Ember St</div>
+</footer>
+
+<script>
+// ── CONSTANTS ─────────────────────────────────────────
+const BURGER_TOTAL = 193;
+const MUG_TOTAL    = 193;
+
+// ── PRELOAD ALL FRAMES ─────────────────────────────────
+const burgerFrames = new Array(BURGER_TOTAL);
+const mugFrames    = new Array(MUG_TOTAL);
+
+const loaderBar = document.getElementById('loaderBar');
+const loaderPct = document.getElementById('loaderPct');
+const loader    = document.getElementById('loader');
+
+let loadedCount = 0;
+const totalLoad = BURGER_TOTAL + MUG_TOTAL;
+
+function onFrameLoad() {
+  loadedCount++;
+  const pct = Math.round((loadedCount / totalLoad) * 100);
+  loaderBar.style.width = pct + '%';
+  loaderPct.textContent = pct + '%';
+  if (loadedCount === totalLoad) {
+    setTimeout(() => { loader.classList.add('done'); setTimeout(() => loader.remove(), 800); }, 200);
+  }
+}
+
+for (let i = 0; i < BURGER_TOTAL; i++) {
+  const img = new Image();
+  img.src = `burger_png/ffout${String(i+1).padStart(3,'0')}.png`;
+  img.onload = img.onerror = onFrameLoad;
+  burgerFrames[i] = img;
+}
+for (let i = 0; i < MUG_TOTAL; i++) {
+  const img = new Image();
+  img.src = `mug_png/ffout${String(i+1).padStart(3,'0')}.png`;
+  img.onload = img.onerror = onFrameLoad;
+  mugFrames[i] = img;
+}
+
+// ── CANVAS SETUP ───────────────────────────────────────
+const burgerCanvas = document.getElementById('burger-canvas');
+const burgerCtx    = burgerCanvas.getContext('2d');
+const mugCanvas    = document.getElementById('mug-canvas');
+const mugCtx       = mugCanvas.getContext('2d');
+
+function resizeCanvas(canvas) {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+function drawOnCanvas(ctx, canvas, frames, idx) {
+  const img = frames[idx];
+  if (!img || !img.complete || !img.naturalWidth) return;
+  const cw = canvas.width, ch = canvas.height;
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  const scale = Math.max(cw/iw, ch/ih);
+  const dw = iw*scale, dh = ih*scale;
+  ctx.clearRect(0, 0, cw, ch);
+  ctx.drawImage(img, (cw-dw)/2, (ch-dh)/2, dw, dh);
+}
+
+window.addEventListener('resize', () => {
+  resizeCanvas(burgerCanvas); drawOnCanvas(burgerCtx, burgerCanvas, burgerFrames, burgerCurrentFrame);
+  resizeCanvas(mugCanvas);    drawOnCanvas(mugCtx, mugCanvas, mugFrames, mugCurrentFrame);
+});
+resizeCanvas(burgerCanvas);
+resizeCanvas(mugCanvas);
+
+// ── BURGER SEQUENCE SCROLL ─────────────────────────────
+const burgerWrapper = document.getElementById('burger-seq');
+let burgerCurrentFrame = 0;
+
+const heroTitle  = document.getElementById('hero-title');
+const scrollHint = document.getElementById('scrollHint');
+
+const bL = [
+  document.getElementById('b-l1'),
+  document.getElementById('b-l2'),
+  document.getElementById('b-l3'),
+];
+const bR = [
+  document.getElementById('b-r1'),
+  document.getElementById('b-r2'),
+  document.getElementById('b-r3'),
+];
+const bLThresh = [[0.12,0.30],[0.32,0.54],[0.58,0.80]];
+const bRThresh = [[0.18,0.36],[0.40,0.60],[0.64,0.85]];
+
+function updateBurger() {
+  const rect = burgerWrapper.getBoundingClientRect();
+  const progress = Math.max(0, Math.min(1, -rect.top / (burgerWrapper.offsetHeight - window.innerHeight)));
+
+  const fi = Math.min(Math.round(progress * (BURGER_TOTAL-1)), BURGER_TOTAL-1);
+  if (fi !== burgerCurrentFrame) { burgerCurrentFrame = fi; drawOnCanvas(burgerCtx, burgerCanvas, burgerFrames, fi); }
+
+  // hero title fade out
+  const fade = Math.max(0, 1 - progress * 7);
+  heroTitle.style.opacity   = fade;
+  heroTitle.style.transform = `translate(-50%, calc(-50% + ${progress*70}px))`;
+  scrollHint.style.opacity  = Math.max(0, 1 - progress * 14);
+
+  bL.forEach((el, i) => {
+    const [s,e] = bLThresh[i];
+    const vis = progress > s && progress < e;
+    el.classList.toggle('visible', vis);
+    if (vis) { el.style.transform = 'translateY(-50%) translateX(0)'; }
+    else { el.style.transform = `translateY(-50%) translateX(${progress < s ? -28 : 28}px)`; }
+  });
+  bR.forEach((el, i) => {
+    const [s,e] = bRThresh[i];
+    const vis = progress > s && progress < e;
+    el.classList.toggle('visible', vis);
+    if (vis) { el.style.transform = 'translateY(-50%) translateX(0)'; }
+    else { el.style.transform = `translateY(-50%) translateX(${progress < s ? 28 : -28}px)`; }
+  });
+}
+
+// ── MUG SEQUENCE SCROLL ────────────────────────────────
+const mugWrapper = document.getElementById('mug-seq');
+let mugCurrentFrame = 0;
+const mugIntro = document.getElementById('mug-intro');
+
+const mL = [
+  document.getElementById('m-l1'),
+  document.getElementById('m-l2'),
+  document.getElementById('m-l3'),
+];
+const mR = [
+  document.getElementById('m-r1'),
+  document.getElementById('m-r2'),
+  document.getElementById('m-r3'),
+];
+const mLThresh = [[0.08,0.28],[0.30,0.55],[0.58,0.82]];
+const mRThresh = [[0.14,0.34],[0.38,0.60],[0.64,0.88]];
+
+function updateMug() {
+  const rect = mugWrapper.getBoundingClientRect();
+  const progress = Math.max(0, Math.min(1, -rect.top / (mugWrapper.offsetHeight - window.innerHeight)));
+
+  const fi = Math.min(Math.round(progress * (MUG_TOTAL-1)), MUG_TOTAL-1);
+  if (fi !== mugCurrentFrame) { mugCurrentFrame = fi; drawOnCanvas(mugCtx, mugCanvas, mugFrames, fi); }
+
+  const fade = Math.max(0, 1 - progress * 6);
+  mugIntro.style.opacity   = fade;
+  mugIntro.style.transform = `translate(-50%, calc(-50% + ${progress*60}px))`;
+
+  mL.forEach((el, i) => {
+    const [s,e] = mLThresh[i];
+    const vis = progress > s && progress < e;
+    el.classList.toggle('visible', vis);
+    if (vis) { el.style.transform = 'translateY(-50%) translateX(0)'; }
+    else { el.style.transform = `translateY(-50%) translateX(${progress < s ? -28 : 28}px)`; }
+  });
+  mR.forEach((el, i) => {
+    const [s,e] = mRThresh[i];
+    const vis = progress > s && progress < e;
+    el.classList.toggle('visible', vis);
+    if (vis) { el.style.transform = 'translateY(-50%) translateX(0)'; }
+    else { el.style.transform = `translateY(-50%) translateX(${progress < s ? 28 : -28}px)`; }
+  });
+}
+
+// ── UNIFIED SCROLL HANDLER ─────────────────────────────
+let rafPending = false;
+window.addEventListener('scroll', () => {
+  document.getElementById('nav').classList.toggle('scrolled', window.scrollY > 30);
+  if (!rafPending) {
+    rafPending = true;
+    requestAnimationFrame(() => {
+      updateBurger();
+      updateMug();
+      rafPending = false;
+    });
+  }
+}, { passive: true });
+
+// Initial draw
+drawOnCanvas(burgerCtx, burgerCanvas, burgerFrames, 0);
+drawOnCanvas(mugCtx, mugCanvas, mugFrames, 0);
+
+// ── INTERSECTION OBSERVER ──────────────────────────────
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    e.target.classList.add('in-view');
+    if (e.target.classList.contains('stat-item')) {
+      const el = e.target.querySelector('.stat-num');
+      countUp(el, parseInt(el.dataset.target));
+    }
+    io.unobserve(e.target);
+  });
+}, { threshold: 0.15 });
+
+document.querySelectorAll('.reveal, .mcard, .stat-item, .step').forEach(el => io.observe(el));
+
+// ── COUNTER ───────────────────────────────────────────
+function countUp(el, target) {
+  const dur = 1800, start = performance.now();
+  const suffix = target === 1 ? '#' : '+';
+  (function tick(now) {
+    const p = Math.min((now - start) / dur, 1);
+    const ease = 1 - Math.pow(1-p, 3);
+    el.textContent = (target === 1 ? '#' : '') + Math.round(ease * target) + (target > 1 ? '+' : '');
+    if (p < 1) requestAnimationFrame(tick);
+  })(start);
+}
+
+// ── CUSTOM CURSOR ─────────────────────────────────────
+const dot  = document.getElementById('cursorDot');
+const ring = document.getElementById('cursorRing');
+let rx = 0, ry = 0, mx = 0, my = 0;
+
+document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; dot.style.left = mx+'px'; dot.style.top = my+'px'; });
+(function cursorRaf() {
+  rx += (mx-rx)*0.1; ry += (my-ry)*0.1;
+  ring.style.left = rx+'px'; ring.style.top = ry+'px';
+  requestAnimationFrame(cursorRaf);
+})();
+
+document.querySelectorAll('a, button, .mcard').forEach(el => {
+  el.addEventListener('mouseenter', () => { ring.style.width='58px'; ring.style.height='58px'; ring.style.borderColor='rgba(245,197,24,0.8)'; });
+  el.addEventListener('mouseleave', () => { ring.style.width='34px'; ring.style.height='34px'; ring.style.borderColor='rgba(245,197,24,0.45)'; });
+});
+</script>
+</body>
+</html>
